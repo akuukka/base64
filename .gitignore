@@ -1,0 +1,4 @@
+.cache/
+.dir-locals.el
+.projectile
+build
