@@ -19,7 +19,7 @@ int main(int argc, char** argv)
     };
     for (const auto& testCase : cases) {
         const auto decoded =
-            base64::decode<std::string>(testCase.encoded, strlen(testCase.encoded));
+            base64::decode<std::string>(testCase.encoded);
         if (decoded != testCase.data) {
             std::cerr << "Expected base64 decoding of " << testCase.encoded
                       << " to be " << testCase.data << ", but got "
@@ -42,11 +42,26 @@ int main(int argc, char** argv)
             data[i] = rand() % 256;
         }
         const std::string encoded = base64::encode<std::string>(data.c_str(), data.length());
-        const std::string decoded = base64::decode<std::string>(encoded.c_str(), encoded.length());
+        const std::string decoded = base64::decode<std::string>(encoded);
         if (decoded != data) {
             std::cerr << "Didn't get original back.\n";
             return 1;
         }
+    }
+
+    struct PodStruct {
+        int i;
+        double f;
+        char str[5];
+    } a, b;
+    a.i = 21;
+    a.f = -4214.1411;
+    strcpy(a.str, "test");
+
+    const std::string encoded = base64::encode<std::string>(&a, sizeof(a));
+    base64::decode(encoded, &b);
+    if (a.i != b.i || a.f != b.f || strcmp(a.str, b.str)) {
+        std::cout << "POD struct changed.\n";
     }
     return 0;
 }

@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <stdexcept>
 #include <cstddef>
 
@@ -43,10 +44,9 @@ inline T encode(const void* data, size_t bytes)
     return r;
 }
 
-template<typename T>
-inline T decode(const char* data, size_t count)
+inline size_t decode(const char* data, size_t count, void* out)
 {
-    T r;
+    char* r = (char*)out;
     const int table[] = {
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -69,7 +69,6 @@ inline T decode(const char* data, size_t count)
         (count >= 2 && data[count - 2] == '=' ? 2 : 1) : 0;
     const size_t bits = count ? count * 6 - padding * 8 : 0;
     const size_t bytes = bits / 8;
-    r.resize(bytes);
     for (size_t i=0;i<count;i++) {
         const char c = data[i];
         for (size_t j=0;j<6;j++) {
@@ -88,7 +87,32 @@ inline T decode(const char* data, size_t count)
             }
         }
     }
+    return bytes;
+}
+
+inline size_t decode(const std::string& base64, void* out)
+{
+    return decode(base64.c_str(), base64.size(), out);
+}
+
+template<typename T>
+inline T decode(const char* data, size_t count)
+{
+    const size_t padding =
+        (count >= 1 && data[count - 1] == '=') ?
+        (count >= 2 && data[count - 2] == '=' ? 2 : 1) : 0;
+    const size_t bits = count ? count * 6 - padding * 8 : 0;
+    const size_t bytes = bits / 8;
+    T r;
+    r.resize(bytes);
+    decode(data, count, &r[0]);
     return r;
+}
+
+template<typename T>
+inline T decode(const std::string& str)
+{
+    return decode<T>(str.c_str(), str.length());
 }
 
 }
