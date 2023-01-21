@@ -10,21 +10,29 @@ struct InvalidEncoding : std::runtime_error {
 };
 
 template<typename T>
-inline T encode(const void* data, size_t count)
+inline T encode(const void* data, size_t bytes)
 {
     T r;
-    const size_t padding = (3 - count % 3) % 3;
-    const size_t bits = (count + padding) * 8 - padding * 6;
+    const auto masks = 51331068ULL;
+    const auto d = static_cast<const unsigned char*>(data);
+    const size_t padding = (3 - bytes % 3) % 3;
+    const size_t bits = (bytes + padding) * 8 - padding * 6;
     const size_t sextets = bits / 6;
     r.resize(sextets + padding);
     for (size_t i=0; i < sextets; i++) {
-        size_t v = 0;
-        for (size_t j=0;j<6;j++) {
-            const int bit = i * 6 + j;
-            const size_t bval =
-                bit/8 < count ? (static_cast<const char*>(data)[bit/8] & (1<<(7-(bit%8)))) : 0;
-            if (bval) {
-                v = v | (1 << (5-j));
+        size_t beginBit = i * 6;
+        size_t endBit = (i+1) * 6;
+        size_t beginByte = beginBit / 8;
+        size_t endByte = endBit / 8;
+        int beginOffset = beginBit % 8;
+        int endOffset = endBit % 8;
+        const int mask1 = reinterpret_cast<const unsigned char*>(&masks)[beginOffset/2];
+        int v = (d[beginByte] & mask1) >> (beginOffset == 0 ? 2 : 0);
+        if (endByte > beginByte) {
+            v = v << endOffset;
+            if (endByte < bytes) {
+                const int mask2 = 0x3f << (6 - endOffset);
+                v = v | (d[endByte] & mask2) >> (8 - endOffset);
             }
         }
         r[i] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[v];
