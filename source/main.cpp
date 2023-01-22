@@ -63,8 +63,25 @@ int main(int argc, char** argv)
     const std::string encoded2 = base64::encode<std::string>(&b, sizeof(b));
     assert(encoded2 == encoded);
     if (encoded != encoded2) {
-        std::cout << "POD struct changed.\n";
+        std::cout << "POD struct changed.";
         return 1;
+    }
+
+    const char* bad[] = {
+        "A=AA"
+    };
+    for (const auto b : bad) {
+        bool exception = false;
+        try {
+            base64::decode<std::string>(b);
+        }
+        catch (base64::InvalidEncoding&) {
+            exception = true;
+        }
+        if (!exception) {
+            std::cerr << b << " didn't cause exception, but should have so.";
+            return 1;
+        }
     }
     return 0;
 }
