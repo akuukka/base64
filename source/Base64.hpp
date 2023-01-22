@@ -44,9 +44,17 @@ inline T encode(const void* data, size_t bytes)
     return r;
 }
 
+inline int shift(int v, int n)
+{
+    if (n >= 0) {
+        return v << n;
+    }
+    return v >> -n;
+}
+
 inline size_t decode(const char* data, size_t count, void* out)
 {
-    char* r = (char*)out;
+    unsigned char* r = static_cast<unsigned char*>(out);
     const int table[] = {
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
@@ -69,22 +77,24 @@ inline size_t decode(const char* data, size_t count, void* out)
         (count >= 2 && data[count - 2] == '=' ? 2 : 1) : 0;
     const size_t bits = count ? count * 6 - padding * 8 : 0;
     const size_t bytes = bits / 8;
-    for (size_t i=0; i<count; i++) {
+    const size_t sextets = count - padding;
+    const unsigned char masks[] = { 3, 192, 240, 252 };
+    for (size_t i=0; i < sextets; i++) {
         const char c = data[i];
         if (table[c] == -1) {
             throw InvalidEncoding((std::string("Unexpected character in encoding: ") + c).c_str());
         }
-        for (size_t j=0; j<6; j++) {
-            const int bit = i * 6 + j;
-            if (bit >= bits) {
-                break;
-            }
-            if (table[c] & (1 << (5-j))) {
-                r[bit/8] = r[bit/8] | (1 << (7-bit%8));
-            }
-            else {
-                r[bit/8] = r[bit/8] & ~(1 << (7-bit%8));
-            }
+        const size_t beginBit = i * 6;
+        const size_t endBit = (i+1) * 6;
+        const size_t beginByte = beginBit / 8;
+        const size_t endByte = endBit / 8;
+        const int beginOffset = beginBit % 8;
+        const int endOffset = endBit % 8;
+        const unsigned char mask1  = masks[beginOffset/2];
+        r[beginByte] = r[beginByte] & mask1 | shift(table[c], 2 - beginOffset);
+        if (beginByte != endByte && endByte < bytes) {
+            const unsigned char mask2 = ~(((1 << (8-endOffset)) - 1) << endOffset);
+            r[endByte] = r[endByte] & mask2 | (table[c] << (8-endOffset));
         }
     }
     return bytes;

@@ -48,7 +48,7 @@ int main(int argc, char** argv)
             return 1;
         }
     }
-
+    
     struct PodStruct {
         int i;
         double f;
@@ -57,11 +57,14 @@ int main(int argc, char** argv)
     a.i = 21;
     a.f = -4214.1411;
     strcpy(a.str, "test");
-
+    
     const std::string encoded = base64::encode<std::string>(&a, sizeof(a));
     base64::decode(encoded, &b);
-    if (a.i != b.i || a.f != b.f || strcmp(a.str, b.str)) {
+    const std::string encoded2 = base64::encode<std::string>(&b, sizeof(b));
+    assert(encoded2 == encoded);
+    if (encoded != encoded2) {
         std::cout << "POD struct changed.\n";
+        return 1;
     }
     return 0;
 }
