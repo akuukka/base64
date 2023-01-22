@@ -10,10 +10,9 @@ struct InvalidEncoding : std::runtime_error {
     InvalidEncoding(const char* what) : std::runtime_error(what) {}
 };
 
-template<typename T>
-inline T encode(const void* data, size_t bytes)
+inline std::string encode(const void* data, size_t bytes)
 {
-    T r;
+    std::string r;
     const auto masks = 51331068ULL;
     const auto d = static_cast<const unsigned char*>(data);
     const size_t padding = (3 - bytes % 3) % 3;
