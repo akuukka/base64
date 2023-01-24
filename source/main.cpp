@@ -11,6 +11,7 @@ int main(int argc, char** argv)
     TestCase cases[] = {
         {"light work", "bGlnaHQgd29yaw=="},
         {"Man", "TWFu"},
+        {"fdas", "ZmRhcw=="},
         {"", ""},
         {"Ma", "TWE="},
         {"M", "TQ=="},
