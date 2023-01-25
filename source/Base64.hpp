@@ -35,8 +35,32 @@ struct InvalidEncoding : std::runtime_error {
     InvalidEncoding(const char* what) : std::runtime_error(what) {}
 };
 
+template<typename T>
+inline std::string bin(const T* w, int n = 24)
+{
+    std::string r;
+    for (int i=0;i<n;i++) {
+        r += (i && (i%6 == 0)) ? " " : "";
+        r += (*w) & (1<<i) ? "1" : "0";
+    }
+    return r;
+}
+
+template<typename T>
+inline std::string bin(const T w, int n = 24)
+{
+    std::string r;
+    for (int i=0;i<n;i++) {
+        r += (i && (i%6 == 0)) ? " " : "";
+        r += (w) & (1<<i) ? "1" : "0";
+    }
+    return r;
+}
+
 inline std::string encode(const void* data, size_t bytes)
 {
+    const auto table =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string r;
     const auto masks = 51331068ULL;
     const auto d = static_cast<const unsigned char*>(data);
@@ -44,23 +68,41 @@ inline std::string encode(const void* data, size_t bytes)
     const size_t bits = (bytes + padding) * 8 - padding * 6;
     const size_t sextets = bits / 6;
     r.resize(sextets + padding);
-    for (size_t i=0; i < sextets; i++) {
-        size_t beginBit = i * 6;
-        size_t endBit = (i+1) * 6;
-        size_t beginByte = beginBit / 8;
-        size_t endByte = endBit / 8;
-        int beginOffset = beginBit % 8;
-        int endOffset = endBit % 8;
-        const int mask1 = reinterpret_cast<const unsigned char*>(&masks)[beginOffset/2];
-        int v = (d[beginByte] & mask1) >> (beginOffset == 0 ? 2 : 0);
-        if (endByte > beginByte) {
-            v = v << endOffset;
-            if (endByte < bytes) {
-                const int mask2 = 0x3f << (6 - endOffset);
-                v = v | (d[endByte] & mask2) >> (8 - endOffset);
-            }
+    const size_t groups = (sextets + 4 - 1) / 4; //sextets / 4;
+    for (size_t i=0; i < groups; i++) {
+        size_t bytesLeft = bytes - i * 3;
+        
+        int group = i;
+        int wordBegin = group * 3;
+
+        std::uint64_t co = 0;
+        if (bytesLeft >= 3) {
+            co = *reinterpret_cast<const std::uint64_t*>(d + wordBegin);
         }
-        r[i] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[v];
+        else if (bytesLeft >= 2) {
+            co = *reinterpret_cast<const std::uint16_t*>(d + wordBegin);
+        }
+        else {
+            co = *reinterpret_cast<const std::uint8_t*>(d + wordBegin);
+        }
+        
+        const std::uint64_t* w = &co;
+        std::uint64_t w2 = 0;
+        w2 = w2 | ((*w & 0b11111100)>>2);
+        w2 = w2 | ((*w & (0b1111 << 12)) >> 6) | ( (*w & 0b11) << 10);
+        auto w3 = ( (*w) & (0b11 << 22)    ) >> 10;
+        w2 = w2 | w3;
+        auto w4 = ( (*w) & (0b1111 << 8)    ) << 6 ; 
+        w2 = w2 | w4;
+        w2 = w2 | (( (*w) & (0b111111 << 16))) << 2;
+        auto a = w2 & 63;
+        auto b = (w2>>6) & 63;
+        auto c = (w2>>12) & 63;
+        auto d = (w2>>18) & 63;
+        r[i*4 + 0] = table[a];
+        r[i*4 + 1] = table[b];
+        r[i*4 + 2] = table[c];
+        r[i*4 + 3] = table[d];
     }
     for (size_t i=0; i < padding; i++) {
         r[sextets + i] = '=';
