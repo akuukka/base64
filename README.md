@@ -17,7 +17,7 @@ To decode to a pre-existing buffer:
 
     // void* out is a pointer to a buffer of data which has to be large enough
     // to hold the decoded data. See discussion about dataLength function below
-    // to see how you can get the minimum number of bytes your buffer has to be.  
+    // to see how you can get the minimum size for your buffer.
     size_t bytes = base64::decode(encoded, out);
     // Or if you are not using std::string:
     size_t bytes = base64::decode(encoded.c_str(), encoded.size(), out);
