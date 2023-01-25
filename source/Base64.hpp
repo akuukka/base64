@@ -90,6 +90,11 @@ inline size_t dataLength(const char* base64String, size_t length, size_t* paddin
     return bytes;
 }
 
+inline size_t dataLength(const std::string& base64String, size_t* paddingOut = nullptr)
+{
+    return dataLength(base64String.c_str(), base64String.size(), paddingOut);
+}
+
 inline size_t decode(const char* str, size_t length, void* out)
 {
     const unsigned char* data = reinterpret_cast<const unsigned char*>(str);
