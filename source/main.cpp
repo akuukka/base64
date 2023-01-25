@@ -84,5 +84,15 @@ int main(int argc, char** argv)
             return 1;
         }
     }
+
+    // Same buffer for input and output is acceptable when decoding (but don't try
+    // when encoding...)
+    {
+        const std::string data = "whatever";
+        std::string buffer = base64::encode(data.c_str(), data.size());
+        const size_t bytes = base64::decode(buffer, &buffer[0]);
+        buffer.resize(bytes);
+        assert(buffer == data);
+    }
     return 0;
 }

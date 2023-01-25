@@ -27,3 +27,11 @@ You can use dataLength function to check how many bytes of data a base64 encoded
     size_t bytes = base64::dataLength(encoded);
     // And again, you don't need to use std::string:
     size_t bytes = base64::dataLength(encoded.c_str(), encoded.size());
+
+When decoding, you can use same buffer for input and output:
+
+    const std::string data = "whatever";
+    std::string buffer = base64::encode(data.c_str(), data.size());
+    const size_t bytes = base64::decode(buffer, &buffer[0]);
+    buffer.resize(bytes);
+    assert(buffer == data); // OK
