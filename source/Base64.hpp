@@ -185,7 +185,7 @@ inline T decode(const char* data, size_t count)
 template<typename T>
 inline T decode(const std::string& str)
 {
-    return decode<T>(str.c_str(), str.length());
+    return decode<T>(str.length() ? &str[0] : "", str.length());
 }
 
 }
