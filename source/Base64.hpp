@@ -72,35 +72,28 @@ inline void encodeChunk(const unsigned char d[3], char* out)
     out[3] = table[(w2>>18) & 63];
 }
 
-inline std::string _encode(const unsigned char* d, size_t bytes)
+inline std::string encode(const void* data, size_t bytes)
 {
+    const auto d = static_cast<const unsigned char*>(data);
     const size_t padding = (3 - bytes % 3) % 3;
     const size_t bits = (bytes + padding) * 8 - padding * 6;
     const size_t sextets = bits / 6;
     std::string r;
     r.resize(sextets + padding);
     const size_t groups = (sextets + 4 - 1) / 4;
-    for (size_t i=0; i < groups; i++) {
+    const size_t safeGroups = (bytes % 3 == 0) ? groups : groups - 1;
+    for (size_t i=0; i < safeGroups; i++) {
         encodeChunk(&d[i*3], &r[i * 4]);
+    }
+    const size_t remaining = bytes - safeGroups * 3;
+    if (remaining) {
+        const unsigned char zero = 0;
+        const size_t i = groups - 1;
+        const unsigned char last[3] = {d[i*3], remaining == 2 ? d[i*3 + 1] : zero, zero};
+        encodeChunk(last, &r[i * 4]);
     }
     for (size_t i=0; i < padding; i++) {
         r[sextets + i] = '=';
-    }
-    return r;
-}
-
-inline std::string encode(const void* data, size_t bytes)
-{
-    const auto d = static_cast<const unsigned char*>(data);
-    const size_t bigChunk = bytes / 3 * 3;
-    std::string r = _encode(d, bigChunk);
-    const size_t remainder = bytes - bigChunk;
-    if (remainder) {
-        std::uint64_t last = d[bigChunk];
-        if (remainder >= 2) {
-            last = last | (d[bigChunk + 1] << 8);
-        }
-        r += _encode(reinterpret_cast<const std::uint8_t*>(&last), remainder);
     }
     return r;
 }
