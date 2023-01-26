@@ -35,77 +35,6 @@ struct InvalidEncoding : std::runtime_error {
     InvalidEncoding(const char* what) : std::runtime_error(what) {}
 };
 
-template<typename T>
-inline std::string bin(const T* w, int n = 24)
-{
-    std::string r;
-    for (int i=0;i<n;i++) {
-        r += (i && (i%6 == 0)) ? " " : "";
-        r += (*w) & (1<<i) ? "1" : "0";
-    }
-    return r;
-}
-
-template<typename T>
-inline std::string bin(const T w, int n = 24)
-{
-    std::string r;
-    for (int i=0;i<n;i++) {
-        r += (i && (i%6 == 0)) ? " " : "";
-        r += (w) & (1<<i) ? "1" : "0";
-    }
-    return r;
-}
-
-inline void encodeChunk(const unsigned char d[3], char* out)
-{
-    const auto table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    const std::uint32_t co = (d[2])<<16 | (d[1])<<8 | d[0];
-    const std::uint32_t w2 = (co & 0b11111100) >> 2
-        | ((co & (0b1111 << 12)) >> 6) | ( (co & 0b11) << 10)
-        | (co & (0b11 << 22)) >> 10
-        | (co & (0b1111 << 8)) << 6
-        | (co & (0b111111 << 16)) << 2;
-    out[0] = table[w2 & 63];
-    out[1] = table[(w2>>6) & 63];
-    out[2] = table[(w2>>12) & 63];
-    out[3] = table[(w2>>18) & 63];
-}
-
-inline std::string encode(const void* data, size_t bytes)
-{
-    const auto d = static_cast<const unsigned char*>(data);
-    const size_t padding = (3 - bytes % 3) % 3;
-    const size_t bits = (bytes + padding) * 8 - padding * 6;
-    const size_t sextets = bits / 6;
-    std::string r;
-    r.resize(sextets + padding);
-    const size_t groups = (sextets + 4 - 1) / 4;
-    const size_t safeGroups = (bytes % 3 == 0) ? groups : groups - 1;
-    for (size_t i=0; i < safeGroups; i++) {
-        encodeChunk(&d[i*3], &r[i * 4]);
-    }
-    const size_t remaining = bytes - safeGroups * 3;
-    if (remaining) {
-        const unsigned char zero = 0;
-        const size_t i = groups - 1;
-        const unsigned char last[3] = {d[i*3], remaining == 2 ? d[i*3 + 1] : zero, zero};
-        encodeChunk(last, &r[i * 4]);
-    }
-    for (size_t i=0; i < padding; i++) {
-        r[sextets + i] = '=';
-    }
-    return r;
-}
-
-inline int shift(int v, int n)
-{
-    if (n >= 0) {
-        return v << n;
-    }
-    return v >> -n;
-}
-
 /// Return number of bytes represented by a base64 encoded string.
 inline size_t dataLength(const char* base64String, size_t length, size_t* paddingOut = nullptr)
 {
@@ -118,6 +47,71 @@ inline size_t dataLength(const char* base64String, size_t length, size_t* paddin
         *paddingOut = padding;
     }
     return bytes;
+}
+
+/// Return number of bytes required by the base64 representation of dataLength bytes.
+inline size_t encodedLength(size_t dataLength, size_t* paddingOut = nullptr)
+{
+    const size_t padding = (3 - dataLength % 3) % 3;
+    const size_t bits = (dataLength + padding) * 8 - padding * 6;
+    const size_t sextets = bits / 6;
+    if (paddingOut) {
+        *paddingOut = padding;
+    }
+    return sextets + padding;
+}
+
+inline void encodeChunk(const unsigned char d[3], char* out)
+{
+    const char* table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const std::uint32_t co = (d[2])<<16 | (d[1])<<8 | d[0];
+    const std::uint32_t w2 = (co & 0b11111100) >> 2
+        | ((co & (0b1111 << 12)) >> 6) | ( (co & 0b11) << 10)
+        | (co & (0b11 << 22)) >> 10
+        | (co & (0b1111 << 8)) << 6
+        | (co & (0b111111 << 16)) << 2;
+    out[0] = table[w2 & 63];
+    out[1] = table[(w2>>6) & 63];
+    out[2] = table[(w2>>12) & 63];
+    out[3] = table[(w2>>18) & 63];
+}
+
+inline void encode(const void* data, size_t bytes, char* out)
+{
+    const auto d = static_cast<const unsigned char*>(data);
+    size_t padding;
+    const size_t sextets = encodedLength(bytes, &padding) - padding;
+    const size_t groups = (sextets + 4 - 1) / 4;
+    const size_t safeGroups = (bytes % 3 == 0) ? groups : groups - 1;
+    for (size_t i=0; i < safeGroups; i++) {
+        encodeChunk(&d[i*3], &out[i * 4]);
+    }
+    const size_t remaining = bytes - safeGroups * 3;
+    if (remaining) {
+        const unsigned char zero = 0;
+        const size_t i = groups - 1;
+        const unsigned char last[3] = {d[i*3], remaining == 2 ? d[i*3 + 1] : zero, zero};
+        encodeChunk(last, &out[i * 4]);
+    }
+    for (size_t i=0; i < padding; i++) {
+        out[sextets + i] = '=';
+    }
+}
+
+inline std::string encode(const void* data, size_t bytes)
+{
+    std::string r;
+    r.resize(encodedLength(bytes));
+    encode(data, bytes, &r[0]);
+    return r;
+}
+
+inline int shift(int v, int n)
+{
+    if (n >= 0) {
+        return v << n;
+    }
+    return v >> -n;
 }
 
 inline size_t dataLength(const std::string& base64String, size_t* paddingOut = nullptr)
