@@ -57,9 +57,23 @@ inline std::string bin(const T w, int n = 24)
     return r;
 }
 
-inline std::string _encode(const unsigned char* d, size_t bytes)
+inline void encodeChunk(const unsigned char d[3], char* out)
 {
     const auto table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const std::uint32_t co = (d[2])<<16 | (d[1])<<8 | d[0];
+    const std::uint32_t w2 = (co & 0b11111100) >> 2
+        | ((co & (0b1111 << 12)) >> 6) | ( (co & 0b11) << 10)
+        | (co & (0b11 << 22)) >> 10
+        | (co & (0b1111 << 8)) << 6
+        | (co & (0b111111 << 16)) << 2;
+    out[0] = table[w2 & 63];
+    out[1] = table[(w2>>6) & 63];
+    out[2] = table[(w2>>12) & 63];
+    out[3] = table[(w2>>18) & 63];
+}
+
+inline std::string _encode(const unsigned char* d, size_t bytes)
+{
     const size_t padding = (3 - bytes % 3) % 3;
     const size_t bits = (bytes + padding) * 8 - padding * 6;
     const size_t sextets = bits / 6;
@@ -67,16 +81,7 @@ inline std::string _encode(const unsigned char* d, size_t bytes)
     r.resize(sextets + padding);
     const size_t groups = (sextets + 4 - 1) / 4;
     for (size_t i=0; i < groups; i++) {
-        const std::uint32_t co = (d[i*3 + 2])<<16 | (d[i*3 + 1])<<8 | d[i*3];
-        const std::uint32_t w2 = (co & 0b11111100) >> 2
-            | ((co & (0b1111 << 12)) >> 6) | ( (co & 0b11) << 10)
-            | (co & (0b11 << 22)) >> 10
-            | (co & (0b1111 << 8)) << 6
-            | (co & (0b111111 << 16)) << 2;
-        r[i*4 + 0] = table[w2 & 63];
-        r[i*4 + 1] = table[(w2>>6) & 63];
-        r[i*4 + 2] = table[(w2>>12) & 63];
-        r[i*4 + 3] = table[(w2>>18) & 63];
+        encodeChunk(&d[i*3], &r[i * 4]);
     }
     for (size_t i=0; i < padding; i++) {
         r[sextets + i] = '=';
