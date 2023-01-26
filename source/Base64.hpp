@@ -67,12 +67,7 @@ inline std::string _encode(const unsigned char* d, size_t bytes)
     r.resize(sextets + padding);
     const size_t groups = (sextets + 4 - 1) / 4;
     for (size_t i=0; i < groups; i++) {
-        size_t bytesLeft = bytes - i * 3;
-        
-        int group = i;
-        int wordBegin = group * 3;
-
-        const std::uint32_t co = (d[wordBegin + 2])<<16 | (d[wordBegin + 1])<<8 | d[wordBegin];
+        const std::uint32_t co = (d[i*3 + 2])<<16 | (d[i*3 + 1])<<8 | d[i*3];
         const std::uint32_t w2 = (co & 0b11111100) >> 2
             | ((co & (0b1111 << 12)) >> 6) | ( (co & 0b11) << 10)
             | (co & (0b11 << 22)) >> 10
