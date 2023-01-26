@@ -35,16 +35,17 @@ int main(int argc, char** argv)
             return 1;
         }
     }
+    
     std::string data;
-    for (int i=0; i < 10000;i++) {
-        size_t len = (rand() % 25);
-        data.resize(len);
-        for (size_t i=0;i<len;i++) {
-            data[i] = rand() % 256;
+    data.resize(25);
+    for (int i=0; i < 100000; i++) {
+        size_t len = rand() % 3;
+        for (size_t i=0; i < 25; i++) {
+            data[i] = i < len ? rand() % 256 : 0xff;
         }
-        const std::string encoded = base64::encode(data.c_str(), data.length());
+        const std::string encoded = base64::encode(&data[0], len);
         const std::string decoded = base64::decode<std::string>(encoded);
-        if (decoded != data) {
+        if (decoded != data.substr(0, len)) {
             std::cerr << "Didn't get original back.\n";
             return 1;
         }
@@ -93,6 +94,38 @@ int main(int argc, char** argv)
         const size_t bytes = base64::decode(buffer, &buffer[0]);
         buffer.resize(bytes);
         assert(buffer == data);
+    }
+
+    // Check that junk beyond the bounds of our buffer does not affect the end result:
+    {
+        std::string buf, buf2;
+        buf.resize(3);
+        buf2.resize(3);
+        buf[0] = 'M';
+        buf[1] = 0xff;
+        buf[2] = 0xff;
+        buf2[0] = 'M';
+        buf2[1] = 0;
+        buf2[2] = 0;;
+        if (base64::encode(&buf[0], 1) != base64::encode(&buf2[0], 1)) {
+            std::cerr << "Junk beyounds bounds does matter.\n";
+            return 1;
+        }
+    }
+    {
+        std::string buf, buf2;
+        buf.resize(3);
+        buf2.resize(3);
+        buf[0] = 'M';
+        buf[1] = 'a';
+        buf[2] = 0xff;
+        buf2[0] = 'M';
+        buf2[1] = 'a';
+        buf2[2] = 0;
+        if (base64::encode(&buf[0], 2) != base64::encode(&buf2[0], 2)) {
+            std::cerr << "Junk beyounds bounds does matter.\n";
+            return 1;
+        }
     }
     return 0;
 }

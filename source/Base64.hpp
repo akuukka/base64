@@ -57,55 +57,50 @@ inline std::string bin(const T w, int n = 24)
     return r;
 }
 
-inline std::string encode(const void* data, size_t bytes)
+inline std::string _encode(const unsigned char* d, size_t bytes)
 {
-    const auto table =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    std::string r;
-    const auto masks = 51331068ULL;
-    const auto d = static_cast<const unsigned char*>(data);
+    const auto table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     const size_t padding = (3 - bytes % 3) % 3;
     const size_t bits = (bytes + padding) * 8 - padding * 6;
     const size_t sextets = bits / 6;
+    std::string r;
     r.resize(sextets + padding);
-    const size_t groups = (sextets + 4 - 1) / 4; //sextets / 4;
+    const size_t groups = (sextets + 4 - 1) / 4;
     for (size_t i=0; i < groups; i++) {
         size_t bytesLeft = bytes - i * 3;
         
         int group = i;
         int wordBegin = group * 3;
 
-        std::uint64_t co = 0;
-        if (bytesLeft >= 3) {
-            co = *reinterpret_cast<const std::uint64_t*>(d + wordBegin);
-        }
-        else if (bytesLeft >= 2) {
-            co = *reinterpret_cast<const std::uint16_t*>(d + wordBegin);
-        }
-        else {
-            co = *reinterpret_cast<const std::uint8_t*>(d + wordBegin);
-        }
-        
-        const std::uint64_t* w = &co;
-        std::uint64_t w2 = 0;
-        w2 = w2 | ((*w & 0b11111100)>>2);
-        w2 = w2 | ((*w & (0b1111 << 12)) >> 6) | ( (*w & 0b11) << 10);
-        auto w3 = ( (*w) & (0b11 << 22)    ) >> 10;
-        w2 = w2 | w3;
-        auto w4 = ( (*w) & (0b1111 << 8)    ) << 6 ; 
-        w2 = w2 | w4;
-        w2 = w2 | (( (*w) & (0b111111 << 16))) << 2;
-        auto a = w2 & 63;
-        auto b = (w2>>6) & 63;
-        auto c = (w2>>12) & 63;
-        auto d = (w2>>18) & 63;
-        r[i*4 + 0] = table[a];
-        r[i*4 + 1] = table[b];
-        r[i*4 + 2] = table[c];
-        r[i*4 + 3] = table[d];
+        const std::uint32_t co = (d[wordBegin + 2])<<16 | (d[wordBegin + 1])<<8 | d[wordBegin];
+        const std::uint32_t w2 = (co & 0b11111100) >> 2
+            | ((co & (0b1111 << 12)) >> 6) | ( (co & 0b11) << 10)
+            | (co & (0b11 << 22)) >> 10
+            | (co & (0b1111 << 8)) << 6
+            | (co & (0b111111 << 16)) << 2;
+        r[i*4 + 0] = table[w2 & 63];
+        r[i*4 + 1] = table[(w2>>6) & 63];
+        r[i*4 + 2] = table[(w2>>12) & 63];
+        r[i*4 + 3] = table[(w2>>18) & 63];
     }
     for (size_t i=0; i < padding; i++) {
         r[sextets + i] = '=';
+    }
+    return r;
+}
+
+inline std::string encode(const void* data, size_t bytes)
+{
+    const auto d = static_cast<const unsigned char*>(data);
+    const size_t bigChunk = bytes / 3 * 3;
+    std::string r = _encode(d, bigChunk);
+    const size_t remainder = bytes - bigChunk;
+    if (remainder) {
+        std::uint64_t last = d[bigChunk];
+        if (remainder >= 2) {
+            last = last | (d[bigChunk + 1] << 8);
+        }
+        r += _encode(reinterpret_cast<const std::uint8_t*>(&last), remainder);
     }
     return r;
 }
