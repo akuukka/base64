@@ -1,5 +1,7 @@
 #include <iostream>
 #include <string>
+#include <cstring>
+#include <cassert>
 #include "Base64.hpp"
 
 int main(int argc, char** argv)
