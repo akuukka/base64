@@ -31,6 +31,24 @@ SOFTWARE.
 namespace base64
 {
 
+const std::uint8_t Table[] = {
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 62, 255, 255, 255, 63, 52, 53, 54, 55,
+    56, 57, 58, 59, 60, 61, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8,
+    9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 255, 255, 255, 255,
+    255, 255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
+    45, 46, 47, 48, 49, 50, 51, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255
+};
+
 struct InvalidEncoding : std::runtime_error {
     InvalidEncoding(const char* what) : std::runtime_error(what) {}
 };
@@ -111,31 +129,37 @@ inline size_t dataLength(const std::string& base64String, size_t* paddingOut = n
     return dataLength(base64String.c_str(), base64String.size(), paddingOut);
 }
 
-inline void decodeChunk(const char d[4], std::uint8_t out[3])
+template<int Padding>
+void decodeChunk(const char d[4], std::uint8_t out[3]);
+
+template<>
+inline void decodeChunk<0>(const char d[4], std::uint8_t out[3])
 {
-    const std::uint8_t table[] = {
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 62, 255, 255, 255, 63, 52, 53, 54, 55,
-        56, 57, 58, 59, 60, 61, 255, 255, 255, 255, 255, 255, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8,
-        9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 255, 255, 255, 255,
-        255, 255, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44,
-        45, 46, 47, 48, 49, 50, 51, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255
-    };
-    if ((table[d[0]] | table[d[1]] | table[d[2]] | table[d[3]]) & (1<<7)) {
+    if ((Table[d[0]] | Table[d[1]] | Table[d[2]] | Table[d[3]]) & (1<<7)) {
         throw InvalidEncoding("Invalid character found in chunk");
     }
-    out[0] = table[d[0]] << 2 | ((table[d[1]] & 0b110000) >> 4);
-    out[1] = (table[d[1]] & 0b1111) << 4 | (table[d[2]] & 0b111100) >> 2;
-    out[2] = (table[d[2]] & 0b11) << 6 | (table[d[3]] & 0b111111);
+    out[0] = Table[d[0]] << 2 | ((Table[d[1]] & 0b110000) >> 4);
+    out[1] = (Table[d[1]] & 0b1111) << 4 | (Table[d[2]] & 0b111100) >> 2;
+    out[2] = (Table[d[2]] & 0b11) << 6 | (Table[d[3]] & 0b111111);
+}
+
+template<>
+inline void decodeChunk<1>(const char d[3], std::uint8_t out[2])
+{
+    if ((Table[d[0]] | Table[d[1]] | Table[d[2]]) & (1<<7)) {
+        throw InvalidEncoding("Invalid character found in chunk");
+    }
+    out[0] = Table[d[0]] << 2 | ((Table[d[1]] & 0b110000) >> 4);
+    out[1] = (Table[d[1]] & 0b1111) << 4 | (Table[d[2]] & 0b111100) >> 2;
+}
+
+template<>
+inline void decodeChunk<2>(const char d[2], std::uint8_t out[1])
+{
+    if ((Table[d[0]] | Table[d[1]]) & (1<<7)) {
+        throw InvalidEncoding("Invalid character found in chunk");
+    }
+    out[0] = Table[d[0]] << 2 | ((Table[d[1]] & 0b110000) >> 4);
 }
 
 inline size_t decode(const char* str, size_t length, void* out)
@@ -143,25 +167,19 @@ inline size_t decode(const char* str, size_t length, void* out)
     if (!(length % 4 == 0)) {
         throw InvalidEncoding("Padding expected");
     }
-    unsigned char* r = static_cast<unsigned char*>(out);
+    std::uint8_t* r = static_cast<std::uint8_t*>(out);
     size_t padding;
     const size_t bytes = dataLength(str, length, &padding);
     const size_t chunks = (length + 4 - 1) / 4;
     const size_t safeChunks = (bytes % 3 == 0) ? chunks : chunks - 1;
     for (size_t i=0; i < safeChunks; i++) {
-        decodeChunk(&str[i* 4], &r[i * 3]);
+        decodeChunk<0>(&str[i* 4], &r[i * 3]);
     }
-    if (safeChunks < chunks) {
-        const char chunk[4] = {
-            str[safeChunks * 4 + 0], str[safeChunks * 4 + 1],
-            padding == 1 ? str[safeChunks * 4 + 2] : 'A', 'A'
-        };
-        std::uint8_t r2[3];
-        decodeChunk(chunk, r2);
-        r[safeChunks * 3] = r2[0];
-        if (padding == 1) {
-            r[safeChunks * 3 + 1] = r2[1];
-        }
+    if (padding == 1) {
+        decodeChunk<1>(&str[safeChunks * 4], &r[safeChunks * 3]);
+    }
+    else if (padding == 2) {
+        decodeChunk<2>(&str[safeChunks * 4], &r[safeChunks * 3]);
     }
     return bytes;
 }
