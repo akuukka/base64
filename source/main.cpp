@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 #include <string>
 #include <cstring>
 #include <cassert>
@@ -41,7 +42,7 @@ int main(int argc, char** argv)
     std::string data;
     data.resize(25);
     for (int i=0; i < 100000; i++) {
-        size_t len = rand() % 3;
+        size_t len = rand() % 10;
         for (size_t i=0; i < 25; i++) {
             data[i] = i < len ? rand() % 256 : 0xff;
         }
@@ -127,6 +128,20 @@ int main(int argc, char** argv)
         if (base64::encode(&buf[0], 2) != base64::encode(&buf2[0], 2)) {
             std::cerr << "Junk beyounds bounds does matter.\n";
             return 1;
+        }
+    }
+
+    // Check that writing beyond buffer bounds doesn't occur.
+    {
+        std::vector<unsigned char> buf;
+        // "M", "TQ=="
+        buf.resize(base64::dataLength("TQ==", 4) + 1);
+        assert(buf.size() == 2);
+        buf[1] = 0xff;
+        base64::decode("TQ==", 4, &buf[0]);
+        assert(buf[0]=='M');
+        if (buf[1] != 0xff) {
+            std::cerr << "Wrote beyond buffer bounds\n";
         }
     }
     return 0;

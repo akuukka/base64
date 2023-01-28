@@ -106,24 +106,14 @@ inline std::string encode(const void* data, size_t bytes)
     return r;
 }
 
-inline int shift(int v, int n)
-{
-    if (n >= 0) {
-        return v << n;
-    }
-    return v >> -n;
-}
-
 inline size_t dataLength(const std::string& base64String, size_t* paddingOut = nullptr)
 {
     return dataLength(base64String.c_str(), base64String.size(), paddingOut);
 }
 
-inline size_t decode(const char* str, size_t length, void* out)
+inline void decodeChunk(const char d[4], std::uint8_t out[3])
 {
-    const unsigned char* data = reinterpret_cast<const unsigned char*>(str);
-    unsigned char* r = static_cast<unsigned char*>(out);
-    const unsigned char table[] = {
+    const std::uint8_t table[] = {
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 255, 62, 255, 255, 255, 63, 52, 53, 54, 55,
@@ -140,29 +130,37 @@ inline size_t decode(const char* str, size_t length, void* out)
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
         255, 255, 255
     };
+    if ((table[d[0]] | table[d[1]] | table[d[2]] | table[d[3]]) & (1<<7)) {
+        throw InvalidEncoding("Invalid character found in chunk");
+    }
+    out[0] = table[d[0]] << 2 | ((table[d[1]] & 0b110000) >> 4);
+    out[1] = (table[d[1]] & 0b1111) << 4 | (table[d[2]] & 0b111100) >> 2;
+    out[2] = (table[d[2]] & 0b11) << 6 | (table[d[3]] & 0b111111);
+}
+
+inline size_t decode(const char* str, size_t length, void* out)
+{
     if (!(length % 4 == 0)) {
         throw InvalidEncoding("Padding expected");
     }
+    unsigned char* r = static_cast<unsigned char*>(out);
     size_t padding;
     const size_t bytes = dataLength(str, length, &padding);
-    const size_t sextets = length - padding;
-    const unsigned char masks[] = { 3, 192, 240, 252 };
-    for (size_t i=0; i < sextets; i++) {
-        const unsigned char c = table[data[i]];
-        if (c == 255) {
-            throw InvalidEncoding("Unexpected character in encoding");
-        }
-        const size_t beginBit = i * 6;
-        const size_t endBit = (i+1) * 6;
-        const size_t beginByte = beginBit / 8;
-        const size_t endByte = endBit / 8;
-        const int beginOffset = beginBit % 8;
-        const unsigned char mask1  = masks[beginOffset/2];
-        r[beginByte] = r[beginByte] & mask1 | shift(c, 2 - beginOffset);
-        if (beginByte != endByte && endByte < bytes) {
-            const int endOffset = endBit % 8;
-            const unsigned char mask2 = ~(((1 << (8-endOffset)) - 1) << endOffset);
-            r[endByte] = r[endByte] & mask2 | (c << (8-endOffset));
+    const size_t chunks = (length + 4 - 1) / 4;
+    const size_t safeChunks = (bytes % 3 == 0) ? chunks : chunks - 1;
+    for (size_t i=0; i < safeChunks; i++) {
+        decodeChunk(&str[i* 4], &r[i * 3]);
+    }
+    if (safeChunks < chunks) {
+        const char chunk[4] = {
+            str[safeChunks * 4 + 0], str[safeChunks * 4 + 1],
+            padding == 1 ? str[safeChunks * 4 + 2] : 'A', 'A'
+        };
+        std::uint8_t r2[3];
+        decodeChunk(chunk, r2);
+        r[safeChunks * 3] = r2[0];
+        if (padding == 1) {
+            r[safeChunks * 3 + 1] = r2[1];
         }
     }
     return bytes;
