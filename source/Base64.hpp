@@ -79,7 +79,11 @@ inline size_t encodedLength(size_t dataLength, size_t* paddingOut = nullptr)
     return sextets + padding;
 }
 
-inline void encodeChunk(const unsigned char d[3], char* out)
+template<int Padding>
+inline void encodeChunk(const unsigned char d[3], char* out);
+
+template<>
+inline void encodeChunk<0>(const unsigned char d[3], char* out)
 {
     const char* table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     const std::uint32_t co = (d[2])<<16 | (d[1])<<8 | d[0];
@@ -94,25 +98,47 @@ inline void encodeChunk(const unsigned char d[3], char* out)
     out[3] = table[(w2>>18) & 63];
 }
 
+template<>
+inline void encodeChunk<1>(const unsigned char d[2], char* out)
+{
+    const char* table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const std::uint32_t co = d[1] << 8 | d[0];
+    const std::uint32_t w2 = (co & 0b11111100) >> 2
+        | ((co & (0b1111 << 12)) >> 6) | ( (co & 0b11) << 10)
+        | (co & (0b1111 << 8)) << 6;
+    out[0] = table[w2 & 63];
+    out[1] = table[(w2>>6) & 63];
+    out[2] = table[(w2>>12) & 63];
+    out[3] = '=';
+}
+
+template<>
+inline void encodeChunk<2>(const unsigned char d[1], char* out)
+{
+    const char* table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const std::uint32_t co = d[0];
+    const std::uint32_t w2 = (co & 0b11111100) >> 2 | ((co & 0b11) << 10);
+    out[0] = table[w2 & 63];
+    out[1] = table[(w2>>6) & 63];
+    out[2] = '=';
+    out[3] = '=';
+}
+
 inline void encode(const void* data, size_t bytes, char* out)
 {
     const auto d = static_cast<const unsigned char*>(data);
     size_t padding;
     const size_t sextets = encodedLength(bytes, &padding) - padding;
-    const size_t groups = (sextets + 4 - 1) / 4;
-    const size_t safeGroups = (bytes % 3 == 0) ? groups : groups - 1;
-    for (size_t i=0; i < safeGroups; i++) {
-        encodeChunk(&d[i*3], &out[i * 4]);
+    const size_t chunks = (sextets + 4 - 1) / 4;
+    const size_t fullChunks = (bytes % 3 == 0) ? chunks : chunks - 1;
+    for (size_t i=0; i < fullChunks; i++) {
+        encodeChunk<0>(&d[i*3], &out[i * 4]);
     }
-    const size_t remaining = bytes - safeGroups * 3;
-    if (remaining) {
-        const unsigned char zero = 0;
-        const size_t i = groups - 1;
-        const unsigned char last[3] = {d[i*3], remaining == 2 ? d[i*3 + 1] : zero, zero};
-        encodeChunk(last, &out[i * 4]);
+    if (padding == 1) {
+        encodeChunk<1>(&d[(chunks - 1)*3], &out[(chunks - 1) * 4]);
     }
-    for (size_t i=0; i < padding; i++) {
-        out[sextets + i] = '=';
+    if (padding == 2) {
+        encodeChunk<2>(&d[(chunks - 1)*3], &out[(chunks - 1) * 4]);
     }
 }
 
